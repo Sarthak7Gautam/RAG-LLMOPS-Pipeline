@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class Validate_AI_Response(BaseModel):
-    res: str = Field(min_length=1, max_length=2048)
+    res: str = Field(min_length=1, max_length=4096)
 
 
 class UploadResponse(BaseModel):  # whether file is uploaded or not

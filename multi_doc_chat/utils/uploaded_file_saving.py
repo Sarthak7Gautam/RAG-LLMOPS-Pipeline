@@ -27,22 +27,19 @@ def save_uploaded_files(uploaded_files: Iterable, target_dir: Path):
 
         for uf in uploaded_files: # uf is a FastApiFileAdapter
             filename = getattr(
-                uf, "filename", getattr(uf, "name", getattr(uf, "file", "unknown_file"))
+                uf, "filename", getattr(uf, "file", getattr(uf, "name", "unknown_file"))
             )  # error was "name" should have been before because "unknown_file" will not be an attribute it will be a default string which will not have an ext so error will be thrown, if you want to check another attribute as well add another getattr
 
             log.info(f"The filename is {filename}")
             ext = Path(filename).suffix.lower()
-            log.info(f"The uploaded file's extension is {ext}")
 
             if ext not in SUPPORTED_EXTENSIONS:
                 log.info("File not supported")
                 continue
 
             try:
-                # Most upload objects (Flask/FastAPI/Streamlit) have a .read() method
                 content = uf.get_buffer()
 
-                # Ensure the path is to a FILE, not a directory
                 file_save_path = target_dir / filename
                 file_save_path.write_bytes(content)
 
@@ -50,7 +47,7 @@ def save_uploaded_files(uploaded_files: Iterable, target_dir: Path):
             except Exception as e:
                 log.error(f"Failed to save file: {e}")
 
-        log.info(f"The uploaded file save path is {file_save_path}")
+        log.info(f"The user uploaded file saved successfully in {file_save_path}")
         return file_save_path
     except Exception as e:
-        raise CustomDocumentException("Error occured while saving file the uploaded file", e)
+        raise CustomDocumentException("Error occured while saving the uploaded file", e) from e 

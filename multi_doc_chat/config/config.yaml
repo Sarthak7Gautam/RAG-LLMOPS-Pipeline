@@ -13,7 +13,7 @@ llm:
   groq:
     provider: groq 
     model_name: "llama-3.3-70b-versatile"
-    max_output_tokens: 2048
+    max_output_tokens: 4096
     temperature: 1
 
 

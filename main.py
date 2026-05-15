@@ -20,6 +20,8 @@ logger = CustomLogger()
 
 log = logger.get_custom_logger()
 
+## FastAPI Initialization ##
+
 app = FastAPI(title="RAG Application")
 
 app.add_middleware(
@@ -38,18 +40,7 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 SESSIONS_CHAT_HISTORY: Dict[str, any] = {}
 
-
-class FastApiFileAdapter:
-    "When given a File from FastApi it adds a file adapter and a getbuffer attribute to avoid no attribute found error"
-
-    def __init__(self, uf: UploadFile):
-        self._uf = uf
-        self.name = uf.filename or uf.file or "name"
-
-    def get_buffer(self) -> bytes:
-        self._uf.file.seek(0)
-        log.info("get_buffer() function call successful")
-        return self._uf.file.read()
+## Request and Response Classes
 
 
 class UploadResponse(BaseModel):
@@ -67,6 +58,25 @@ class ChatAnswer(BaseModel):
     answer: str
 
 
+## FastAPI FileAdapter
+
+
+class FastApiFileAdapter:
+    "When given a File from FastApi it adds a file adapter and a getbuffer attribute to avoid no attribute found error"
+
+    def __init__(self, uf: UploadFile):
+        self._uf = uf
+        self.name = uf.filename or uf.file or "name"
+
+    def get_buffer(self) -> bytes:
+        self._uf.file.seek(0)
+        log.info("get_buffer() function call successful")
+        return self._uf.file.read()
+
+
+## FastAPI EndPoints ##
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
@@ -79,19 +89,19 @@ def home(request: Request) -> HTMLResponse:
         request=request, name="index.html"
     )  # context is needed to send data from python to html file
 
-emb_model = ModelLoader().load_embedding_model()
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_file(files: List[UploadFile] = File(...)) -> UploadResponse:
     try:
         if not files:
-            log.error("No file found in the uoload_file function")
+            log.error("No file found in the upload_file function")
             raise HTTPException(status_code=404, detail="Please upload a file")
 
         wrapped_files = [FastApiFileAdapter(file) for file in files]
         log.info(f"File wrapped success, {len(files)}")
 
-        ingestor = ChatIngestor(use_sessions_dirs=True,emb_model = emb_model)
+        # file local save, doc_load, split, embeddings_generation, save embeddings in vector_store is done by ChatIngestor
+        ingestor = ChatIngestor(use_sessions_dirs=True)
         session_id = ingestor.session_id
 
         ingestor.built_retriever(
@@ -102,9 +112,9 @@ async def upload_file(files: List[UploadFile] = File(...)) -> UploadResponse:
             lambda_mult=0.5,
         )
 
-        SESSIONS_CHAT_HISTORY[session_id] = []
+        SESSIONS_CHAT_HISTORY[session_id] = {}
 
-        log.info("File upload success",session_id = session_id)
+        log.info("File upload success", session_id=session_id)
         return UploadResponse(
             session_id=session_id,
             indexed=True,
@@ -129,14 +139,14 @@ async def chat(request: ChatRequest) -> ChatAnswer:
                 status_code=400,
                 detail="Invalid or expired session_id. Re-upload documents.",
             )
-        
+
         if not message:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-        rag = ConversationalRAG(session_id=session_id,emb_model = emb_model)
-        log.info("Conversational RAG initialized")
+        rag = ConversationalRAG(session_id=session_id) # search and return the user question from the llm
+        log.info("Conversational RAG initialized successfully")
 
-        simple_memory = SESSIONS_CHAT_HISTORY.get(session_id, [])
+        simple_memory = SESSIONS_CHAT_HISTORY.get(session_id, {})
         history = []
 
         for m in simple_memory:
@@ -150,8 +160,8 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         answer = rag.llm_invoke(message, chat_history=history)
         log.info("RAG invoke success")
 
-        simple_memory.append({"role": "user", "content": message})
-        simple_memory.append({"role": "assistant", "content": answer})
+        simple_memory.update({"role": "user", "content": message})
+        simple_memory.update({"role": "assistant", "content": answer})
         SESSIONS_CHAT_HISTORY[session_id] = simple_memory
 
         return ChatAnswer(answer=answer)
@@ -160,6 +170,8 @@ async def chat(request: ChatRequest) -> ChatAnswer:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat failed:{e}")
 
+
+## Main Function ##
 
 if __name__ == "__main__":
     import uvicorn

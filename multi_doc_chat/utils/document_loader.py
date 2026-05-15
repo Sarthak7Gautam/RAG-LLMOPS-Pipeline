@@ -18,7 +18,6 @@ class Load_Documents:
             loader = None
 
             suf = file.suffix.lower()
-            log.info(f"The suffix of the user file is {suf}")
 
             if suf == ".pdf":
                 loader = PyPDFLoader(file_path=file)  # if error occurs make it str(file)
@@ -26,9 +25,11 @@ class Load_Documents:
 
             elif suf == ".docx":
                 loader = Docx2txtLoader(file)
+                log.info(".docx File read successfully")
 
             elif suf == ".txt":
                 loader = TextLoader(file)
+                log.info(".txt File read successfully")
 
             else:
                 log.error(

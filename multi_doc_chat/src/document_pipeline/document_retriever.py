@@ -24,12 +24,11 @@ class ConversationalRAG:
         self,
         session_id: Optional[str],
         retriever=None,
-        index_dir="faiss_index",
-        emb_model: ModelLoader = None,
+        index_dir="faiss_index"
     ):
         self.session_id = session_id
 
-        self.emb_model = emb_model
+        self.emb_model = ModelLoader().load_embedding_model()
 
         self.context_prompt = configure_prompt_to_context
         self.context_answer = generate_context_aware_answer
@@ -130,7 +129,7 @@ class ConversationalRAG:
 
             except ValidationError as e:
                 log.error("Invalid Chat Answer")
-                raise CustomDocumentException("Invalid chat Answer", str(e))
+                raise CustomDocumentException("Invalid chat Answer", str(e)) from e 
 
             log.info("Chain Invoked Successfully")
 

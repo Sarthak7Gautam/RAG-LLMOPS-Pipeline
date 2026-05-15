@@ -1,4 +1,4 @@
-# data ingestion involes steps like doc loaders, cleaning, text_split, embedding_generation, store in vector database
+# data ingestion involes steps like doc loaders, cleaning, text_split, embedding_generation, store in vector database and this file does this
 
 import uuid
 from datetime import datetime
@@ -34,10 +34,9 @@ class ChatIngestor:
         faiss_vector_store_base: str = "faiss_index",
         use_sessions_dirs: bool = True,
         session_id: Optional[str] = None,
-        emb_model : ModelLoader = None
     ):
         try:
-            self.model_loader = emb_model
+            self.model_loader = ModelLoader().load_embedding_model()
 
             self.use_sessions_dirs = use_sessions_dirs
             self.session_id = session_id or generate_session_id()
@@ -48,8 +47,8 @@ class ChatIngestor:
             self.faiss_base = Path(faiss_vector_store_base)
             self.faiss_base.mkdir(exist_ok=True, parents=True)
 
-            self.temp_sub_dir = self._resolve_dir(self.temp_base)
-            self.faiss_sub_dir = self._resolve_dir(self.faiss_base)
+            self.temp_sub_dir = self._resolve_sub_dir(self.temp_base)
+            self.faiss_sub_dir = self._resolve_sub_dir(self.faiss_base)
 
             log.info("Chat Ingestor Initialized Successfully")
         except Exception as e:
@@ -59,7 +58,7 @@ class ChatIngestor:
                 "Error occured while initializing ChatIngestor", str(e)
             ) from e
 
-    def _resolve_dir(self, base: Path) -> Path:
+    def _resolve_sub_dir(self, base: Path) -> Path:
         if self.use_sessions_dirs:
             dir = base / self.session_id
             dir.mkdir(exist_ok=True, parents=True)
@@ -67,7 +66,7 @@ class ChatIngestor:
         return base
 
     def _split(
-        self, docs: List[Document], chunk_size: int = 500, chunk_overlap: int = 100
+        self, docs: List[Document], chunk_size: int = 1000, chunk_overlap: int = 250
     ):
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
@@ -79,8 +78,8 @@ class ChatIngestor:
     def built_retriever(
         self,
         uploaded_files: Iterable,
-        chunk_size=500,
-        chunk_overlap=100,
+        chunk_size=1000,
+        chunk_overlap=250,
         k: int = 5,
         search_type: str = "mmr",
         fetch_k: int = 15,
@@ -102,22 +101,26 @@ class ChatIngestor:
                 docs=docs, chunk_size=chunk_size, chunk_overlap=chunk_overlap
             )
 
-            fm = FaissManager(self.faiss_sub_dir, self.model_loader)
+            fm = FaissManager(
+                self.faiss_sub_dir, self.model_loader
+            )  # stores_meta_data, creates_vector_store, add_docs_in_vector_store
             log.info("Faiss Manager Initialized")
 
             self.vs = None
             try:
-                self.vs = fm.load_or_create()
-                log.info("Vector Store load_or_create() successfull in the ChatIngestor")
+                self.vs = fm.load_or_create_vector_store()
+                log.info(
+                    "Vector Store load_or_create_vector_store() successfull in the ChatIngestor"
+                )
 
             except Exception as e:
                 raise CustomDocumentException(
-                    "Exception occured while load_or_create()", str(e)
+                    "Exception occured while load_or_create_vector_store()", str(e)
                 )
 
-            added = fm.add_documents_custom(docs=chunks, vector_store=self.vs)
+            added = fm.add_documents_in_vector_store(docs=chunks, vector_store=self.vs)
 
-            log.info("FAISS index updated", added=added, vector_store=self.vs)
+            log.info("FAISS index updated successfully", added = added)
 
             if search_type == "mmr":
                 search_kwargs = {"k": k}
@@ -143,27 +146,27 @@ class ChatIngestor:
 class FaissManager:
     def __init__(
         self, index_dir: Path, model_loader: Optional[ModelLoader] = None
-    ):  # index_dir = faiss_sub_dir
+    ):  # index_dir == faiss_sub_dir
         # these below two lines are not needed but it is safe
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(exist_ok=True, parents=True)
 
         self.meta_path = index_dir / "ingested_meta.json"
-        self._meta: Dict[str, any] = {"rows": {}}
+        self._meta: Dict[str, any] = {"data": {}}
 
         if self.meta_path.exists():
             self._meta = json.loads(self.meta_path.read_text(encoding="utf-8")) or {
-                "rows": {}
+                "data": {}
             }
         else:
-            self._meta = {"rows": {}}
+            self._meta = {"data": {}}
 
         log.info("Meta data stored successfully in the faiss sub directory")
         self.emb_model = model_loader
         self.vector_store: Optional[FAISS] = None
 
-    def load_or_create(self):
-
+    def load_or_create_vector_store(self):
+        "Loads vector_store if it exists for that particular document else creates new vector_store"
         try:
             if self._index_exists():
                 self.vector_store = FAISS.load_local(
@@ -190,30 +193,36 @@ class FaissManager:
                 return self.vector_store
 
         except Exception as e:
-            raise CustomDocumentException("Error in the load_or_create()", str(e))
+            raise CustomDocumentException(
+                "Error in the load_or_create_vector_store()", str(e)
+            )
 
-    def add_documents_custom(self, docs: List[Document], vector_store: FAISS = None):
-
+    def add_documents_in_vector_store(
+        self, docs: list[Document], vector_store: FAISS = None
+    ):
+        "Returns number of new added docs in vector_store and saves docs in vector_store"
         self.vector_store = vector_store
 
         if self.vector_store is None:
             raise CustomDocumentException(
-                "Call load_or_create() to create vector_store before adding documents"
+                "Call load_or_create_vector_store() to create vector_store before adding documents"
             )
 
         new_docs: List[Document] = []
 
         for d in docs:
             key = self._fingerprint(d.page_content, d.metadata or {})
-            if key not in self._meta["rows"]:
-                self._meta["rows"][key] = True
+            if key not in self._meta["data"]:
+                self._meta["data"][key] = True
                 new_docs.append(d)
 
         if new_docs:
-            log.info(f"DEBUG: The new documents are {new_docs[2].page_content}")
+            log.info(f"DEBUG: The new documents are {new_docs[0].page_content}")
             self.vector_store.add_documents(new_docs)
-            self.vector_store.save_local(str(self.index_dir))
-            self._save_meta()
+            self.vector_store.save_local(
+                str(self.index_dir)
+            )  # this line creates faiss.index and faiss.pkl
+            self._save_meta()  # in ingested_meta.json
 
         log.info(f"No of updated docs: {len(new_docs)}")
         return len(new_docs)
