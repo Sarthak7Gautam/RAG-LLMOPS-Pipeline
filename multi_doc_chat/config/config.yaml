@@ -1,0 +1,20 @@
+embedding_model:
+  provider: "HuggingFace"
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+  
+retriever:
+  fetch_k: 20
+  lambda_mult: 0.5
+  top_k: 7
+  search_type: "mmr"
+
+llm:
+  groq:
+    provider: groq 
+    model_name: "llama-3.3-70b-versatile"
+    max_output_tokens: 2048
+    temperature: 1
+
+
+SupportedExtensions: ['.pdf','.docx','.txt']

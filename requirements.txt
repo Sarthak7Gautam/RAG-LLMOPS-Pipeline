@@ -1,0 +1,13 @@
+groq
+langchain-groq 
+dotenv
+
+langchain
+langchain-core 
+langchain-community 
+faiss-cpu
+huggingface-hub 
+langchain-huggingface
+sentence-transformers
+structlog
+fastapi 
