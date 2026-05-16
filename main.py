@@ -13,7 +13,6 @@ from multi_doc_chat.logging.custom_logger import CustomLogger
 from multi_doc_chat.src.document_ingestion.document_ingestion import ChatIngestor
 from multi_doc_chat.src.document_pipeline.document_retriever import ConversationalRAG
 from langchain_core.messages import HumanMessage, AIMessage
-from multi_doc_chat.utils.model_loader import ModelLoader
 
 
 logger = CustomLogger()
@@ -143,7 +142,9 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         if not message:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-        rag = ConversationalRAG(session_id=session_id) # search and return the user question from the llm
+        rag = ConversationalRAG(
+            session_id=session_id
+        )  # search and return the user question from the llm
         log.info("Conversational RAG initialized successfully")
 
         simple_memory = SESSIONS_CHAT_HISTORY.get(session_id, {})

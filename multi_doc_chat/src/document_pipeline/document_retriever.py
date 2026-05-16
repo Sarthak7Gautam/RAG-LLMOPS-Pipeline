@@ -21,10 +21,7 @@ log = CustomLogger().get_custom_logger()
 
 class ConversationalRAG:
     def __init__(
-        self,
-        session_id: Optional[str],
-        retriever=None,
-        index_dir="faiss_index"
+        self, session_id: Optional[str], retriever=None, index_dir="faiss_index"
     ):
         self.session_id = session_id
 
@@ -129,7 +126,7 @@ class ConversationalRAG:
 
             except ValidationError as e:
                 log.error("Invalid Chat Answer")
-                raise CustomDocumentException("Invalid chat Answer", str(e)) from e 
+                raise CustomDocumentException("Invalid chat Answer", str(e)) from e
 
             log.info("Chain Invoked Successfully")
 

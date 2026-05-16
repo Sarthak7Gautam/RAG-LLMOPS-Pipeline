@@ -120,7 +120,7 @@ class ChatIngestor:
 
             added = fm.add_documents_in_vector_store(docs=chunks, vector_store=self.vs)
 
-            log.info("FAISS index updated successfully", added = added)
+            log.info("FAISS index updated successfully", added=added)
 
             if search_type == "mmr":
                 search_kwargs = {"k": k}
