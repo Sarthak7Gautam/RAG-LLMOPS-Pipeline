@@ -114,7 +114,7 @@ def stub_model_loader(monkeypatch):
                 },
             }
 
-        def load_embeddings(self):
+        def load_embedding_model(self):
             return _StubEmbeddings()
 
         def load_llm(self):
@@ -159,10 +159,10 @@ def stub_rag(monkeypatch):
             self.session_id = session_id
             self.retriever = retriever
 
-        def load_retriever_from_faiss(self):
+        def load_retriever_from_FAISS(self, faiss_sub_dir, **kwargs):
             return None
 
-        def invoke(self, user_input, chat_history=None):
+        def llm_invoke(self, user_input, chat_history=None):
             return "stubbed answer"
 
     monkeypatch.setattr(dr, "ConversationalRAG", FakeRAG)

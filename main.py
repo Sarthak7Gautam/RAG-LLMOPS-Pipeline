@@ -43,6 +43,7 @@ SESSIONS_CHAT_HISTORY: Dict[str, any] = {}
 
 
 class UploadResponse(BaseModel):
+    status_code: int
     session_id: str
     indexed: bool
     message: str | None = None
@@ -54,6 +55,7 @@ class ChatRequest(BaseModel):
 
 
 class ChatAnswer(BaseModel):
+    status_code: int
     answer: str
 
 
@@ -94,7 +96,7 @@ async def upload_file(files: List[UploadFile] = File(...)) -> UploadResponse:
     try:
         if not files:
             log.error("No file found in the upload_file function")
-            raise HTTPException(status_code=404, detail="Please upload a file")
+            raise HTTPException(status_code=422, detail="Please upload a file")
 
         wrapped_files = [FastApiFileAdapter(file) for file in files]
         log.info(f"File wrapped success, {len(files)}")
@@ -111,10 +113,11 @@ async def upload_file(files: List[UploadFile] = File(...)) -> UploadResponse:
             lambda_mult=0.5,
         )
 
-        SESSIONS_CHAT_HISTORY[session_id] = {}
+        SESSIONS_CHAT_HISTORY[session_id] = []
 
         log.info("File upload success", session_id=session_id)
         return UploadResponse(
+            status_code=200,
             session_id=session_id,
             indexed=True,
             message="File Upload Successful and Indexing complete with MMR",
@@ -131,9 +134,7 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         session_id = request.session_id
         message = request.message.strip()
 
-        session_faiss_dir = Path("faiss_index") / session_id
-
-        if not session_id or not session_faiss_dir.exists():
+        if not session_id or session_id not in SESSIONS_CHAT_HISTORY:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid or expired session_id. Re-upload documents.",
@@ -147,7 +148,7 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         )  # search and return the user question from the llm
         log.info("Conversational RAG initialized successfully")
 
-        simple_memory = SESSIONS_CHAT_HISTORY.get(session_id, {})
+        simple_memory = SESSIONS_CHAT_HISTORY.get(session_id, [])
         history = []
 
         for m in simple_memory:
@@ -161,11 +162,11 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         answer = rag.llm_invoke(message, chat_history=history)
         log.info("RAG invoke success")
 
-        simple_memory.update({"role": "user", "content": message})
-        simple_memory.update({"role": "assistant", "content": answer})
+        simple_memory.append({"role": "user", "content": message})
+        simple_memory.append({"role": "assistant", "content": answer})
         SESSIONS_CHAT_HISTORY[session_id] = simple_memory
 
-        return ChatAnswer(answer=answer)
+        return ChatAnswer(status_code=200, answer=answer)
     except CustomDocumentException as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:

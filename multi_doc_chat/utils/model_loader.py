@@ -9,10 +9,27 @@ from multi_doc_chat.utils.config_loader import Configuration_Loader
 log = CustomLogger().get_custom_logger()
 
 
+class ApiKeyManager:
+    def __init__(self):
+        load_dotenv()
+        self.REQUIRED_KEYS = ["GROQ_API_KEY"]
+        self.api_keys = {}
+
+        for key in self.REQUIRED_KEYS:
+            val = os.getenv(key)
+            self.api_keys[key] = val
+
+        if self.api_keys.items():
+            log.info(
+                f"API KEY loaded successfully {self.api_keys.get('GROQ_API_KEY')[:12]} "
+            )
+        else:
+            log.error("No API key available in the environment variable")
+
+
 class ModelLoader:
     _embedding_model = True
-    _llm = True 
-    REQUIRED_KEYS = ["GROQ_API_KEY"]
+    _llm = True
 
     def __init__(self):
         load_dotenv()
@@ -42,15 +59,15 @@ class ModelLoader:
                     log.error("Model Provider not available in the config file")
 
         except Exception as e:
-            raise CustomDocumentException("Error Loading Embeddings Model", str(e)) from None
-        
+            raise CustomDocumentException(
+                "Error Loading Embeddings Model", str(e)
+            ) from None
+
         self._embedding_model = False
 
     def load_llm(self):
         try:
             if self._llm:
-                api_keys = {}
-
                 log.info(f"The config file is {self.config_data}")
 
                 llm_config = self.config_data.get("llm", {})
@@ -66,21 +83,12 @@ class ModelLoader:
                     f"The llm provider is {llm_provider} and the name is {llm_model_name}"
                 )
 
-                for key in self.REQUIRED_KEYS:
-                    val = os.getenv(key)
-                    api_keys[key] = val
-
-                if api_keys.items():
-                    log.info(
-                        f"API KEY loaded successfully {api_keys.get('GROQ_API_KEY')[:12]} from {llm_provider}"
-                    )
-                else:
-                    log.error("No API key available in the environment variable")
+                self.api_keys = ApiKeyManager()
 
                 if llm_provider == "groq":
                     log.info("ChatGroq Model Initialized Successfully")
                     return ChatGroq(
-                        api_key=api_keys.get("GROQ_API_KEY"),
+                        api_key=self.api_keys.api_keys.get("GROQ_API_KEY"),
                         model=llm_model_name,
                         max_tokens=llm_max_output,
                         temperature=llm_temperature,
@@ -92,5 +100,5 @@ class ModelLoader:
             raise CustomDocumentException(
                 "Error initializing ChatGroq Model", str(e)
             ) from None
-        
+
         self._llm = False
