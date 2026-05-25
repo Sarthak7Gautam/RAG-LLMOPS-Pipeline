@@ -167,6 +167,8 @@ async def chat(request: ChatRequest) -> ChatAnswer:
         SESSIONS_CHAT_HISTORY[session_id] = simple_memory
 
         return ChatAnswer(status_code=200, answer=answer)
+    except HTTPException :
+        raise
     except CustomDocumentException as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
